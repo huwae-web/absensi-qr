@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sesi Kuliah - Sistem Absensi</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    
+    <div class="container mx-auto px-4 py-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800" id="sessionTitle">Loading...</h1>
+                    <p class="text-gray-600 mt-1" id="sessionInfo">Loading...</p>
+                </div>
+                <button onclick="window.location.href='dashboard-dosen.html'" class="btn-secondary">
+                    ← Kembali
+                </button>
+            </div>
+        </div>
+        
+        <div class="grid lg:grid-cols-2 gap-6">
+            
+            <!-- QR Code Card -->
+            <div class="bg-white rounded-lg shadow-lg p-8 fade-in">
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold mb-4">QR Code Absensi</h2>
+                    
+                    <!-- Timer Display -->
+                    <div class="mb-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                        <p class="text-sm text-yellow-800">⏰ Sisa waktu valid:</p>
+                        <p class="text-3xl font-bold text-yellow-900" id="timer">15:00</p>
+                    </div>
+                    
+                    <!-- QR Code Container -->
+                    <div id="qrcode" class="inline-block p-6 bg-white rounded-lg shadow-md"></div>
+                    
+                    <!-- Session Info -->
+                    <div class="mt-6 text-left bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold mb-2">Informasi Sesi:</h3>
+                        <div class="space-y-1 text-sm text-gray-700" id="sessionDetails"></div>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="mt-6 space-y-2">
+                        <button onclick="refreshQR()" class="w-full btn-primary">
+                            🔄 Refresh QR Code
+                        </button>
+                        <button onclick="closeSessionConfirm()" class="w-full btn-danger">
+                            🔒 Tutup Sesi
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Attendance List Card -->
+            <div class="bg-white rounded-lg shadow-lg p-8 fade-in">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Daftar Hadir</h2>
+                    <button onclick="refreshAttendance()" class="text-indigo-600 hover:text-indigo-800">
+                        🔄 Refresh
+                    </button>
+                </div>
+                
+                <!-- Stats -->
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="bg-green-50 rounded-lg p-3 text-center border border-green-200">
+                        <p class="text-2xl font-bold text-green-700" id="countHadir">0</p>
+                        <p class="text-xs text-green-600">Hadir</p>
+                    </div>
+                    <div class="bg-yellow-50 rounded-lg p-3 text-center border border-yellow-200">
+                        <p class="text-2xl font-bold text-yellow-700" id="countSakit">0</p>
+                        <p class="text-xs text-yellow-600">Sakit</p>
+                    </div>
+                    <div class="bg-blue-50 rounded-lg p-3 text-center border border-blue-200">
+                        <p class="text-2xl font-bold text-blue-700" id="countIzin">0</p>
+                        <p class="text-xs text-blue-600">Izin</p>
+                    </div>
+                </div>
+                
+                <!-- Add Manual Attendance -->
+                <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h3 class="font-semibold text-blue-800 mb-3">➕ Tambah Absen Manual</h3>
+                    <form id="manualForm" class="space-y-2">
+                        <input type="text" id="manualNPM" placeholder="NPM" class="form-input text-sm" required>
+                        <input type="text" id="manualNama" placeholder="Nama Lengkap" class="form-input text-sm" required>
+                        <select id="manualStatus" class="form-input text-sm" required>
+                            <option value="">Pilih Status</option>
+                            <option value="sakit">Sakit</option>
+                            <option value="izin">Izin</option>
+                            <option value="alpha">Alpha</option>
+                        </select>
+                        <button type="submit" class="w-full btn-primary text-sm py-2">Tambah</button>
+                    </form>
+                </div>
+                
+                <!-- Attendance List -->
+                <div id="attendanceList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                
+                <!-- Export Button -->
+                <button onclick="exportToPDF()" class="w-full mt-4 btn-success">
+                    📄 Export PDF
+                </button>
+            </div>
+            
+        </div>
+        
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../js/storage.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/gps.js"></script>
+    <script src="../js/qr.js"></script>
+    <script>
+        // Check authentication
+        if (!requireAuth('dosen')) {
+            // Will redirect if not authenticated
+        }
+        
+        const user = getCurrentUser();
+        let sessionData = null;
+        let timerInterval = null;
+        
+        // Get session ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('id');
+        
+        if (!sessionId) {
+            alert('Session ID tidak ditemukan!');
+            window.location.href = 'dashboard-dosen.html';
+        }
+        
+        // Load Session Data
+        async function loadSession() {
+            sessionData = await StorageManager.get('session:' + sessionId);
+            
+            if (!sessionData) {
+                alert('Sesi tidak ditemukan!');
+                window.location.href = 'dashboard-dosen.html';
+                return;
+            }
+            
+            // Check if user is the owner
+            if (sessionData.dosenNIDN !== user.nidn) {
+                alert('Anda tidak memiliki akses ke sesi ini!');
+                window.location.href = 'dashboard-dosen.html';
+                return;
+            }
+            
+            // Update UI
+            document.getElementById('sessionTitle').textContent = sessionData.mataKuliah;
+            document.getElementById('sessionInfo').textContent = 'Kelas: ' + sessionData.kelas + ' | ' + sessionData.tanggal + ' | ' + sessionData.jamMulai;
+            
+            // Session details
+            const detailsHTML = '<p>📚 Mata Kuliah: <strong>' + sessionData.mataKuliah + '</strong></p>' +
+                '<p>🎓 Kelas: <strong>' + sessionData.kelas + '</strong></p>' +
+                '<p>📅 Tanggal: <strong>' + sessionData.tanggal + '</strong></p>' +
+                '<p>⏰ Jam: <strong>' + sessionData.jamMulai + '</strong></p>' +
+                '<p>📍 GPS: <strong>' + formatGPS(sessionData.gpsLat, sessionData.gpsLong) + '</strong></p>' +
+                '<p>🆔 Session ID: <strong>' + sessionData.sessionId + '</strong></p>';
+            document.getElementById('sessionDetails').innerHTML = detailsHTML;
+            
+            // Generate QR Code
+            const qrData = createSessionQRData(sessionData);
+            generateQRCode('qrcode', qrData, 300);
+            
+            // Start timer
+            startTimer();
+            
+            // Load attendance
+            loadAttendance();
+        }
+        
+        // Start countdown timer
+        function startTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+            
+            timerInterval = setInterval(function() {
+                const now = Date.now();
+                const elapsed = (now - sessionData.timestampMulai) / 1000; // seconds
+                const remaining = (15 * 60) - elapsed; // 15 minutes in seconds
+                
+                if (remaining <= 0 || sessionData.status !== 'active') {
+                    document.getElementById('timer').textContent = 'EXPIRED';
+                    document.getElementById('timer').className = 'text-3xl font-bold text-red-600';
+                    document.getElementById('timer').parentElement.className = 'mb-4 p-4 bg-red-50 rounded-lg border border-red-200';
+                    clearInterval(timerInterval);
+                } else {
+                    const minutes = Math.floor(remaining / 60);
+                    const seconds = Math.floor(remaining % 60);
+                    document.getElementById('timer').textContent = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+                    
+                    // Change color when < 5 minutes
+                    if (remaining < 300) {
+                        document.getElementById('timer').className = 'text-3xl font-bold text-red-600';
+                        document.getElementById('timer').parentElement.className = 'mb-4 p-4 bg-red-50 rounded-lg border border-red-200';
+                    }
+                }
+            }, 1000);
+        }
+        
+        // Load Attendance
+        async function loadAttendance() {
+            const attendance = await StorageManager.get('attendance:' + sessionId) || [];
+            
+            // Update stats
+            const hadir = attendance.filter(function(a) { return a.status === 'hadir'; }).length;
+            const sakit = attendance.filter(function(a) { return a.status === 'sakit'; }).length;
+            const izin = attendance.filter(function(a) { return a.status === 'izin'; }).length;
+            
+            document.getElementById('countHadir').textContent = hadir;
+            document.getElementById('countSakit').textContent = sakit;
+            document.getElementById('countIzin').textContent = izin;
+            
+            // Render list
+            const container = document.getElementById('attendanceList');
+            
+            if (attendance.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500 py-8">Belum ada yang absen</p>';
+                return;
+            }
+            
+            let html = '';
+            attendance.forEach(function(item, index) {
+                let badge = '';
+                if (item.status === 'hadir') badge = '<span class="badge badge-success">Hadir</span>';
+                else if (item.status === 'sakit') badge = '<span class="badge badge-warning">Sakit</span>';
+                else if (item.status === 'izin') badge = '<span class="badge badge-info">Izin</span>';
+                else badge = '<span class="badge badge-danger">Alpha</span>';
+                
+                html += '<div class="border rounded-lg p-3">' +
+                    '<div class="flex justify-between items-start">' +
+                    '<div class="flex-1">' +
+                    '<p class="font-semibold">' + (index + 1) + '. ' + item.nama + '</p>' +
+                    '<p class="text-sm text-gray-600">NPM: ' + item.npm + ' | ' + (item.jamScan || '-') + '</p>' +
+                    '</div>' +
+                    badge +
+                    '</div></div>';
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // Manual Attendance Form
+        document.getElementById('manualForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const npm = document.getElementById('manualNPM').value.trim();
+            const nama = document.getElementById('manualNama').value.trim();
+            const status = document.getElementById('manualStatus').value;
+            
+            if (!npm || !nama || !status) {
+                alert('Semua field harus diisi!');
+                return;
+            }
+            
+            showLoading();
+            
+            const attendance = await StorageManager.get('attendance:' + sessionId) || [];
+            
+            // Check duplicate
+            const exists = attendance.find(function(a) { return a.npm === npm; });
+            if (exists) {
+                hideLoading();
+                alert('NPM sudah terdaftar di absensi!');
+                return;
+            }
+            
+            // Add attendance
+            attendance.push({
+                npm: npm,
+                nama: nama,
+                kelas: sessionData.kelas,
+                jamScan: '-',
+                timestamp: Date.now(),
+                status: status
+            });
+            
+            await StorageManager.set('attendance:' + sessionId, attendance);
+            
+            // Reset form
+            document.getElementById('manualForm').reset();
+            
+            // Reload
+            loadAttendance();
+            hideLoading();
+            
+            alert('Absensi manual berhasil ditambahkan!');
+        });
+        
+        // Refresh functions
+        function refreshQR() {
+            location.reload();
+        }
+        
+        function refreshAttendance() {
+            loadAttendance();
+        }
+        
+        // Close session
+        async function closeSessionConfirm() {
+            if (!confirm('Tutup sesi ini? QR Code tidak akan bisa digunakan lagi.')) {
+                return;
+            }
+            
+            showLoading();
+            sessionData.status = 'closed';
+            await StorageManager.set('session:' + sessionId, sessionData);
+            hideLoading();
+            
+            alert('Sesi ditutup!');
+            window.location.href = 'dashboard-dosen.html';
+        }
+        
+        // Export to PDF
+        async function exportToPDF() {
+            const jsPDF = window.jspdf.jsPDF;
+            const doc = new jsPDF();
+            const attendance = await StorageManager.get('attendance:' + sessionId) || [];
+            
+            doc.setFontSize(16);
+            doc.text('LAPORAN KEHADIRAN KULIAH', 105, 20, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.text('Mata Kuliah: ' + sessionData.mataKuliah, 20, 35);
+            doc.text('Kelas: ' + sessionData.kelas, 20, 42);
+            doc.text('Dosen: ' + sessionData.dosenNama, 20, 49);
+            doc.text('Tanggal: ' + sessionData.tanggal, 20, 56);
+            doc.text('Waktu: ' + sessionData.jamMulai, 20, 63);
+            
+            doc.setFontSize(9);
+            let y = 75;
+            doc.text('No', 20, y);
+            doc.text('NPM', 35, y);
+            doc.text('Nama', 70, y);
+            doc.text('Jam Scan', 130, y);
+            doc.text('Status', 170, y);
+            y += 7;
+            doc.line(20, y - 2, 190, y - 2);
+            
+            attendance.forEach(function(item, index) {
+                if (y > 270) {
+                    doc.addPage();
+                    y = 20;
+                }
+                doc.text((index + 1).toString(), 20, y);
+                doc.text(item.npm, 35, y);
+                doc.text(item.nama.substring(0, 25), 70, y);
+                doc.text(item.jamScan || '-', 130, y);
+                doc.text(item.status, 170, y);
+                y += 7;
+            });
+            
+            y += 10;
+            const hadir = attendance.filter(function(a) { return a.status === 'hadir'; }).length;
+            const sakit = attendance.filter(function(a) { return a.status === 'sakit'; }).length;
+            const izin = attendance.filter(function(a) { return a.status === 'izin'; }).length;
+            const alpha = attendance.filter(function(a) { return a.status === 'alpha'; }).length;
+            
+            doc.text('Total Hadir: ' + hadir + ' | Sakit: ' + sakit + ' | Izin: ' + izin + ' | Alpha: ' + alpha, 20, y);
+            
+            doc.save('Absensi_' + sessionData.mataKuliah + '_' + sessionData.tanggal + '.pdf');
+        }
+        
+        // Initial load
+        loadSession();
+        
+        // Auto refresh attendance every 5 seconds
+        setInterval(loadAttendance, 5000);
+    </script>
+    
+</body>
+</html>

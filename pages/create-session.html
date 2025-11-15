@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buat Sesi Baru - Sistem Absensi</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    
+    <div class="container mx-auto px-4 py-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Buat Sesi Kuliah Baru</h1>
+                    <p class="text-gray-600 mt-1">Generate QR Code untuk absensi</p>
+                </div>
+                <button onclick="window.location.href='dashboard-dosen.html'" class="btn-secondary">
+                    ← Kembali
+                </button>
+            </div>
+        </div>
+        
+        <!-- Form Card -->
+        <div class="max-w-2xl mx-auto">
+            <div class="bg-white rounded-lg shadow-lg p-8 fade-in">
+                
+                <!-- Alert Container -->
+                <div id="alert-container"></div>
+                
+                <!-- Form -->
+                <form id="sessionForm" class="space-y-6">
+                    
+                    <div>
+                        <label class="form-label">Mata Kuliah *</label>
+                        <input 
+                            type="text" 
+                            id="mataKuliah" 
+                            class="form-input" 
+                            placeholder="Contoh: Pemrograman Web"
+                            required
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="form-label">Kelas *</label>
+                        <input 
+                            type="text" 
+                            id="kelas" 
+                            class="form-input" 
+                            placeholder="Contoh: TI-3A"
+                            required
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="form-label">Lokasi GPS Ruang Kelas *</label>
+                        <div class="flex gap-2">
+                            <input 
+                                type="text" 
+                                id="gpsDisplay" 
+                                class="form-input flex-1" 
+                                placeholder="Klik tombol untuk ambil GPS"
+                                readonly
+                            >
+                            <button 
+                                type="button" 
+                                onclick="getGPSLocation()" 
+                                class="btn-primary whitespace-nowrap"
+                            >
+                                📍 Ambil GPS
+                            </button>
+                        </div>
+                        <input type="hidden" id="gpsLat">
+                        <input type="hidden" id="gpsLong">
+                        <p class="text-xs text-gray-500 mt-2">
+                            ⚠️ Pastikan Anda berada di ruang kelas saat mengambil GPS
+                        </p>
+                    </div>
+                    
+                    <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                        <h3 class="font-semibold text-blue-800 mb-2">ℹ️ Informasi:</h3>
+                        <ul class="text-sm text-blue-700 space-y-1">
+                            <li>• QR Code akan aktif selama <strong>15 menit</strong></li>
+                            <li>• Mahasiswa harus berada dalam radius <strong>10 meter</strong> dari lokasi GPS</li>
+                            <li>• Sesi dapat ditutup manual setelah selesai</li>
+                        </ul>
+                    </div>
+                    
+                    <button 
+                        type="submit" 
+                        class="w-full btn-primary text-lg py-3"
+                        id="submitBtn"
+                    >
+                        🎯 Buat Sesi & Generate QR Code
+                    </button>
+                    
+                </form>
+                
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../js/storage.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/gps.js"></script>
+    <script>
+        // Check authentication
+        if (!requireAuth('dosen')) {
+            // Will redirect if not authenticated
+        }
+        
+        const user = getCurrentUser();
+        const sessionForm = document.getElementById('sessionForm');
+        const alertContainer = document.getElementById('alert-container');
+        
+        // Show alert in container
+        function showAlertInContainer(message, type) {
+            alertContainer.innerHTML = '<div class="alert alert-' + type + ' mb-4">' + message + '</div>';
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // Get GPS Location
+        async function getGPSLocation() {
+            try {
+                showAlertInContainer('Mengambil lokasi GPS... Pastikan GPS aktif!', 'info');
+                
+                const position = await getGPSWithLoading('Mengambil koordinat GPS...');
+                
+                document.getElementById('gpsLat').value = position.latitude;
+                document.getElementById('gpsLong').value = position.longitude;
+                document.getElementById('gpsDisplay').value = formatGPS(position.latitude, position.longitude);
+                
+                showAlertInContainer('GPS berhasil diambil! Akurasi: ' + Math.round(position.accuracy) + ' meter', 'success');
+                
+            } catch (error) {
+                showAlertInContainer(error.message, 'error');
+            }
+        }
+        
+        // Handle form submit
+        sessionForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const mataKuliah = document.getElementById('mataKuliah').value.trim();
+            const kelas = document.getElementById('kelas').value.trim();
+            const gpsLat = document.getElementById('gpsLat').value;
+            const gpsLong = document.getElementById('gpsLong').value;
+            
+            // Validate
+            if (!mataKuliah || !kelas) {
+                showAlertInContainer('Semua field harus diisi!', 'error');
+                return;
+            }
+            
+            if (!gpsLat || !gpsLong) {
+                showAlertInContainer('GPS belum diambil! Klik tombol "Ambil GPS" terlebih dahulu.', 'error');
+                return;
+            }
+            
+            // Create session
+            try {
+                showLoading();
+                
+                const sessionId = generateSessionId();
+                const now = new Date();
+                
+                const sessionData = {
+                    sessionId: sessionId,
+                    dosenNIDN: user.nidn,
+                    dosenNama: user.nama,
+                    mataKuliah: mataKuliah,
+                    kelas: kelas,
+                    tanggal: now.toLocaleDateString('id-ID'),
+                    jamMulai: now.toLocaleTimeString('id-ID'),
+                    timestampMulai: now.getTime(),
+                    gpsLat: parseFloat(gpsLat),
+                    gpsLong: parseFloat(gpsLong),
+                    status: 'active',
+                    createdAt: now.toISOString()
+                };
+                
+                // Save session
+                await StorageManager.set('session:' + sessionId, sessionData);
+                
+                // Initialize empty attendance
+                await StorageManager.set('attendance:' + sessionId, []);
+                
+                hideLoading();
+                
+                // Redirect to view session
+                window.location.href = 'view-session.html?id=' + sessionId;
+                
+            } catch (error) {
+                hideLoading();
+                showAlertInContainer('Terjadi kesalahan: ' + error.message, 'error');
+            }
+        });
+    </script>
+    
+</body>
+</html>

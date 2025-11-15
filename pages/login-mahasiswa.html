@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Mahasiswa - Sistem Absensi</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center">
+    
+    <div class="container mx-auto px-4 py-12">
+        <div class="max-w-md mx-auto">
+            
+            <!-- Card Login -->
+            <div class="bg-white rounded-lg shadow-xl p-8 fade-in">
+                
+                <!-- Header -->
+                <div class="text-center mb-6">
+                    <div class="text-6xl mb-4">👨‍🎓</div>
+                    <h2 class="text-3xl font-bold text-gray-800">Login Mahasiswa</h2>
+                    <p class="text-gray-600 mt-2">Scan QR & cek kehadiran</p>
+                </div>
+                
+                <!-- Alert Container -->
+                <div id="alert-container"></div>
+                
+                <!-- Form Login -->
+                <form id="loginForm" class="space-y-4">
+                    
+                    <div>
+                        <label class="form-label">NPM</label>
+                        <input 
+                            type="text" 
+                            id="npm" 
+                            class="form-input" 
+                            placeholder="Masukkan NPM"
+                            required
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="form-label">Password</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input" 
+                            placeholder="Minimal 8 digit angka"
+                            required
+                        >
+                    </div>
+                    
+                    <button 
+                        type="submit" 
+                        class="w-full btn-primary"
+                    >
+                        Login
+                    </button>
+                    
+                </form>
+                
+                <!-- Register Link -->
+                <div class="mt-6 text-center">
+                    <p class="text-gray-600">
+                        Belum punya akun? 
+                        <a href="register-mahasiswa.html" class="text-indigo-600 font-semibold hover:text-indigo-800">
+                            Daftar di sini
+                        </a>
+                    </p>
+                </div>
+                
+                <!-- Back Button -->
+                <button 
+                    onclick="window.location.href='../index.html'" 
+                    class="w-full mt-4 text-gray-600 hover:text-gray-800 font-medium"
+                >
+                    ← Kembali ke Halaman Utama
+                </button>
+                
+            </div>
+            
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../js/storage.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const alertContainer = document.getElementById('alert-container');
+        
+        function showAlertInContainer(message, type) {
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type} mb-4">
+                    ${message}
+                </div>
+            `;
+        }
+        
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const npm = document.getElementById('npm').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!npm || !password) {
+                showAlertInContainer('Semua field harus diisi!', 'error');
+                return;
+            }
+            
+            const result = await loginMahasiswa(npm, password);
+            
+            if (result.success) {
+                showAlertInContainer('Login berhasil! Mengalihkan...', 'success');
+                setTimeout(() => {
+                    window.location.href = 'dashboard-mahasiswa.html';
+                }, 1000);
+            } else {
+                showAlertInContainer(result.message, 'error');
+            }
+        });
+    </script>
+    
+</body>
+</html>

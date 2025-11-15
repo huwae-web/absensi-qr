@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrasi Dosen - Sistem Absensi</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center">
+    
+    <div class="container mx-auto px-4 py-12">
+        <div class="max-w-md mx-auto">
+            
+            <!-- Card Register -->
+            <div class="bg-white rounded-lg shadow-xl p-8 fade-in">
+                
+                <!-- Header -->
+                <div class="text-center mb-6">
+                    <div class="text-6xl mb-4">👨‍🏫</div>
+                    <h2 class="text-3xl font-bold text-gray-800">Registrasi Dosen</h2>
+                    <p class="text-gray-600 mt-2">Buat akun baru</p>
+                </div>
+                
+                <!-- Alert Container -->
+                <div id="alert-container"></div>
+                
+                <!-- Form Register -->
+                <form id="registerForm" class="space-y-4">
+                    
+                    <div>
+                        <label class="form-label">NIDN</label>
+                        <input 
+                            type="text" 
+                            id="nidn" 
+                            class="form-input" 
+                            placeholder="Masukkan NIDN"
+                            required
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="form-label">Nama Lengkap</label>
+                        <input 
+                            type="text" 
+                            id="nama" 
+                            class="form-input" 
+                            placeholder="Masukkan nama lengkap"
+                            required
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="form-label">Password</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input" 
+                            placeholder="Min. 8 digit angka"
+                            required
+                        >
+                        <p class="text-xs text-gray-500 mt-1">
+                            Password harus minimal 8 digit angka (contoh: 12345678)
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label class="form-label">Konfirmasi Password</label>
+                        <input 
+                            type="password" 
+                            id="confirmPassword" 
+                            class="form-input" 
+                            placeholder="Ulangi password"
+                            required
+                        >
+                    </div>
+                    
+                    <button 
+                        type="submit" 
+                        class="w-full btn-primary"
+                    >
+                        Daftar
+                    </button>
+                    
+                </form>
+                
+                <!-- Info Box -->
+                <div class="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <p class="text-sm text-yellow-800">
+                        <strong>⚠️ Perhatian:</strong><br>
+                        Akun Anda akan menunggu persetujuan dari Admin sebelum dapat digunakan.
+                    </p>
+                </div>
+                
+                <!-- Login Link -->
+                <div class="mt-6 text-center">
+                    <p class="text-gray-600">
+                        Sudah punya akun? 
+                        <a href="login-dosen.html" class="text-indigo-600 font-semibold hover:text-indigo-800">
+                            Login di sini
+                        </a>
+                    </p>
+                </div>
+                
+                <!-- Back Button -->
+                <button 
+                    onclick="window.location.href='../index.html'" 
+                    class="w-full mt-4 text-gray-600 hover:text-gray-800 font-medium"
+                >
+                    ← Kembali ke Halaman Utama
+                </button>
+                
+            </div>
+            
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../js/storage.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        const registerForm = document.getElementById('registerForm');
+        const alertContainer = document.getElementById('alert-container');
+        
+        function showAlertInContainer(message, type) {
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type} mb-4">
+                    ${message}
+                </div>
+            `;
+        }
+        
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const nidn = document.getElementById('nidn').value.trim();
+            const nama = document.getElementById('nama').value.trim();
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            // Validate
+            if (!nidn || !nama || !password || !confirmPassword) {
+                showAlertInContainer('Semua field harus diisi!', 'error');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showAlertInContainer('Password dan konfirmasi password tidak sama!', 'error');
+                return;
+            }
+            
+            // Register
+            const result = await registerDosen(nidn, nama, password);
+            
+            if (result.success) {
+                showAlertInContainer(result.message, 'success');
+                setTimeout(() => {
+                    window.location.href = 'login-dosen.html';
+                }, 2000);
+            } else {
+                showAlertInContainer(result.message, 'error');
+            }
+        });
+    </script>
+    
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Dosen - Sistem Absensi</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    
+    <div class="container mx-auto px-4 py-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Dashboard Dosen</h1>
+                    <p class="text-gray-600 mt-1" id="dosenName">Loading...</p>
+                </div>
+                <button onclick="logout()" class="btn-danger">
+                    🚪 Logout
+                </button>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-8 text-white cursor-pointer hover:shadow-xl transition transform hover:-translate-y-1" onclick="createNewSession()">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-2xl font-bold mb-2">Buat Sesi Baru</h3>
+                        <p class="text-indigo-100">Generate QR Code untuk kuliah</p>
+                    </div>
+                    <div class="text-6xl">➕</div>
+                </div>
+            </div>
+            
+            <div class="bg-gradient-to-r from-green-500 to-teal-600 rounded-lg shadow-lg p-8 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-2xl font-bold mb-2">Total Sesi</h3>
+                        <p class="text-4xl font-bold" id="totalSessions">0</p>
+                    </div>
+                    <div class="text-6xl">📊</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sessions List -->
+        <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+            <h2 class="text-2xl font-bold mb-4">Riwayat Sesi Kuliah</h2>
+            
+            <!-- Filter Tabs -->
+            <div class="border-b border-gray-200 mb-4">
+                <div class="flex gap-4">
+                    <button 
+                        class="px-4 py-2 font-semibold border-b-2 border-indigo-600 text-indigo-600"
+                        id="tabActive"
+                        onclick="filterSessions('active')"
+                    >
+                        Sesi Aktif
+                    </button>
+                    <button 
+                        class="px-4 py-2 font-semibold text-gray-500 hover:text-gray-700"
+                        id="tabClosed"
+                        onclick="filterSessions('closed')"
+                    >
+                        Sesi Selesai
+                    </button>
+                    <button 
+                        class="px-4 py-2 font-semibold text-gray-500 hover:text-gray-700"
+                        id="tabAll"
+                        onclick="filterSessions('all')"
+                    >
+                        Semua Sesi
+                    </button>
+                </div>
+            </div>
+            
+            <div id="sessionsList"></div>
+        </div>
+        
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../js/storage.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/gps.js"></script>
+    <script>
+        let currentFilter = 'active';
+        
+        // Check authentication
+        if (!requireAuth('dosen')) {
+            // Will redirect if not authenticated
+        }
+        
+        // Display dosen name
+        const user = getCurrentUser();
+        document.getElementById('dosenName').textContent = 'Selamat datang, ' + user.nama + ' (NIDN: ' + user.nidn + ')';
+        
+        // Get Dosen Sessions
+        async function getDosenSessions(nidn) {
+            const keys = await StorageManager.list('session:');
+            const sessions = [];
+            
+            for (const key of keys) {
+                const session = await StorageManager.get(key);
+                if (session && session.dosenNIDN === nidn) {
+                    sessions.push(session);
+                }
+            }
+            
+            // Sort by timestamp (newest first)
+            sessions.sort(function(a, b) {
+                return b.timestampMulai - a.timestampMulai;
+            });
+            
+            return sessions;
+        }
+        
+        // Filter Sessions
+        function filterSessions(filter) {
+            currentFilter = filter;
+            
+            // Update tabs
+            document.getElementById('tabActive').className = 'px-4 py-2 font-semibold text-gray-500 hover:text-gray-700';
+            document.getElementById('tabClosed').className = 'px-4 py-2 font-semibold text-gray-500 hover:text-gray-700';
+            document.getElementById('tabAll').className = 'px-4 py-2 font-semibold text-gray-500 hover:text-gray-700';
+            
+            if (filter === 'active') {
+                document.getElementById('tabActive').className = 'px-4 py-2 font-semibold border-b-2 border-indigo-600 text-indigo-600';
+            } else if (filter === 'closed') {
+                document.getElementById('tabClosed').className = 'px-4 py-2 font-semibold border-b-2 border-indigo-600 text-indigo-600';
+            } else {
+                document.getElementById('tabAll').className = 'px-4 py-2 font-semibold border-b-2 border-indigo-600 text-indigo-600';
+            }
+            
+            loadSessions();
+        }
+        
+        // Render Sessions List
+        function renderSessionsList(sessions) {
+            const container = document.getElementById('sessionsList');
+            
+            // Filter based on current filter
+            let filteredSessions = sessions;
+            if (currentFilter === 'active') {
+                filteredSessions = sessions.filter(function(s) { return s.status === 'active'; });
+            } else if (currentFilter === 'closed') {
+                filteredSessions = sessions.filter(function(s) { return s.status === 'closed'; });
+            }
+            
+            if (filteredSessions.length === 0) {
+                container.innerHTML = '<div class="text-center py-12 text-gray-500">' +
+                    '<div class="text-6xl mb-4">📭</div>' +
+                    '<p class="text-xl">Tidak ada sesi ditemukan</p>' +
+                    '</div>';
+                return;
+            }
+            
+            let html = '<div class="space-y-4">';
+            
+            filteredSessions.forEach(function(session) {
+                const statusBadge = session.status === 'active' 
+                    ? '<span class="badge badge-success">Aktif</span>'
+                    : '<span class="badge badge-danger">Selesai</span>';
+                
+                html += '<div class="border rounded-lg p-4 hover:shadow-md transition">' +
+                    '<div class="flex justify-between items-start">' +
+                    '<div class="flex-1">' +
+                    '<div class="flex items-center gap-3 mb-2">' +
+                    '<h3 class="text-xl font-bold text-gray-800">' + session.mataKuliah + '</h3>' +
+                    statusBadge +
+                    '</div>' +
+                    '<div class="grid md:grid-cols-2 gap-2 text-sm text-gray-600">' +
+                    '<p>📚 Kelas: <strong>' + session.kelas + '</strong></p>' +
+                    '<p>📅 Tanggal: <strong>' + session.tanggal + '</strong></p>' +
+                    '<p>⏰ Jam: <strong>' + session.jamMulai + '</strong></p>' +
+                    '<p>🆔 ID: <strong>' + session.sessionId + '</strong></p>' +
+                    '</div>' +
+                    '</div>' +
+                    '<div class="flex gap-2">';
+                
+                if (session.status === 'active') {
+                    html += '<button onclick="viewSession(\'' + session.sessionId + '\')" class="btn-primary">Lihat QR</button>' +
+                        '<button onclick="closeSessionConfirm(\'' + session.sessionId + '\')" class="btn-danger">Tutup Sesi</button>';
+                } else {
+                    html += '<button onclick="viewAttendance(\'' + session.sessionId + '\')" class="btn-secondary">Lihat Absensi</button>';
+                }
+                
+                html += '</div></div></div>';
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // Create New Session
+        function createNewSession() {
+            window.location.href = 'create-session.html';
+        }
+        
+        // View Session (Show QR)
+        function viewSession(sessionId) {
+            window.location.href = 'view-session.html?id=' + sessionId;
+        }
+        
+        // View Attendance
+        function viewAttendance(sessionId) {
+            window.location.href = 'view-attendance.html?id=' + sessionId;
+        }
+        
+        // Close Session
+        async function closeSessionConfirm(sessionId) {
+            if (!confirm('Apakah Anda yakin ingin menutup sesi ini? QR Code tidak akan bisa digunakan lagi.')) {
+                return;
+            }
+            
+            showLoading();
+            
+            const session = await StorageManager.get('session:' + sessionId);
+            if (session) {
+                session.status = 'closed';
+                session.closedAt = new Date().toISOString();
+                await StorageManager.set('session:' + sessionId, session);
+                
+                alert('Sesi berhasil ditutup!');
+                loadSessions();
+            }
+            
+            hideLoading();
+        }
+        
+        // Load Sessions
+        async function loadSessions() {
+            showLoading();
+            
+            const sessions = await getDosenSessions(user.nidn);
+            
+            // Update stats
+            document.getElementById('totalSessions').textContent = sessions.length;
+            
+            // Render list
+            renderSessionsList(sessions);
+            
+            hideLoading();
+        }
+        
+        // Initial load
+        loadSessions();
+    </script>
+    
+</body>
+</html>

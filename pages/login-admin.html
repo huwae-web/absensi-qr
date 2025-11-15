@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Admin - Sistem Absensi</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex items-center justify-center">
+    
+    <div class="container mx-auto px-4 py-12">
+        <div class="max-w-md mx-auto">
+            
+            <!-- Card Login -->
+            <div class="bg-white rounded-lg shadow-xl p-8 fade-in">
+                
+                <!-- Header -->
+                <div class="text-center mb-6">
+                    <div class="text-6xl mb-4">👨‍💼</div>
+                    <h2 class="text-3xl font-bold text-gray-800">Login Admin</h2>
+                    <p class="text-gray-600 mt-2">Kelola persetujuan dosen</p>
+                </div>
+                
+                <!-- Alert Container -->
+                <div id="alert-container"></div>
+                
+                <!-- Form Login -->
+                <form id="loginForm" class="space-y-4">
+                    
+                    <div>
+                        <label class="form-label">Username</label>
+                        <input 
+                            type="text" 
+                            id="username" 
+                            class="form-input" 
+                            placeholder="Masukkan username"
+                            required
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="form-label">Password</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input" 
+                            placeholder="Masukkan password"
+                            required
+                        >
+                    </div>
+                    
+                    <button 
+                        type="submit" 
+                        class="w-full btn-primary"
+                    >
+                        Login
+                    </button>
+                    
+                </form>
+                
+                <!-- Default Credentials Info -->
+                <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <p class="text-sm text-blue-800">
+                        <strong>Default Admin:</strong><br>
+                        Username: <code class="bg-blue-100 px-2 py-1 rounded">admin</code><br>
+                        Password: <code class="bg-blue-100 px-2 py-1 rounded">admin123</code>
+                    </p>
+                </div>
+                
+                <!-- Back Button -->
+                <button 
+                    onclick="window.location.href='../index.html'" 
+                    class="w-full mt-4 text-gray-600 hover:text-gray-800 font-medium"
+                >
+                    ← Kembali ke Halaman Utama
+                </button>
+                
+            </div>
+            
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../js/storage.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        const loginForm = document.getElementById('loginForm');
+        const alertContainer = document.getElementById('alert-container');
+        
+        // Initialize admin account first
+        initializeAdmin().then(() => {
+            console.log('Admin account ready');
+        });
+        
+        // Show alert in container
+        function showAlertInContainer(message, type) {
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type} mb-4">
+                    ${message}
+                </div>
+            `;
+        }
+        
+        // Handle form submit
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            
+            // Validate input
+            if (!username || !password) {
+                showAlertInContainer('Semua field harus diisi!', 'error');
+                return;
+            }
+            
+            // Login
+            const result = await loginAdmin(username, password);
+            
+            if (result.success) {
+                showAlertInContainer('Login berhasil! Mengalihkan...', 'success');
+                setTimeout(() => {
+                    window.location.href = 'dashboard-admin.html';
+                }, 1000);
+            } else {
+                showAlertInContainer(result.message, 'error');
+            }
+        });
+    </script>
+    
+</body>
+</html>

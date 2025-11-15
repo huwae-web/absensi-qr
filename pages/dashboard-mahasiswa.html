@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Mahasiswa - Sistem Absensi</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    
+    <div class="container mx-auto px-4 py-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Dashboard Mahasiswa</h1>
+                    <p class="text-gray-600 mt-1" id="mahasiswaName">Loading...</p>
+                </div>
+                <button onclick="logout()" class="btn-danger">
+                    🚪 Logout
+                </button>
+            </div>
+        </div>
+        
+        <!-- Quick Action - Scan QR -->
+        <div class="mb-6">
+            <div class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg shadow-lg p-8 text-white cursor-pointer hover:shadow-xl transition transform hover:-translate-y-1" onclick="goToScan()">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-3xl font-bold mb-2">📷 Scan QR Code</h3>
+                        <p class="text-indigo-100 text-lg">Klik untuk absen kuliah</p>
+                    </div>
+                    <div class="text-8xl">➡️</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stats Cards -->
+        <div class="grid md:grid-cols-4 gap-6 mb-6">
+            <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Hadir</p>
+                        <p class="text-3xl font-bold text-green-600" id="countHadir">0</p>
+                    </div>
+                    <div class="text-5xl">✅</div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Sakit</p>
+                        <p class="text-3xl font-bold text-yellow-600" id="countSakit">0</p>
+                    </div>
+                    <div class="text-5xl">🤒</div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Izin</p>
+                        <p class="text-3xl font-bold text-blue-600" id="countIzin">0</p>
+                    </div>
+                    <div class="text-5xl">📝</div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-500 text-sm">Alpha</p>
+                        <p class="text-3xl font-bold text-red-600" id="countAlpha">0</p>
+                    </div>
+                    <div class="text-5xl">❌</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Attendance History -->
+        <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Riwayat Kehadiran</h2>
+                <button onclick="refreshHistory()" class="text-indigo-600 hover:text-indigo-800 font-semibold">
+                    🔄 Refresh
+                </button>
+            </div>
+            
+            <div id="historyList"></div>
+        </div>
+        
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../js/storage.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        // Check authentication
+        if (!requireAuth('mahasiswa')) {
+            // Will redirect if not authenticated
+        }
+        
+        const user = getCurrentUser();
+        
+        // Display mahasiswa info
+        document.getElementById('mahasiswaName').textContent = user.nama + ' | NPM: ' + user.npm + ' | Kelas: ' + user.kelas;
+        
+        // Go to scan page
+        function goToScan() {
+            window.location.href = 'scan-qr.html';
+        }
+        
+        // Get mahasiswa attendance history
+        async function getMahasiswaAttendance() {
+            const sessionKeys = await StorageManager.list('attendance:');
+            const allAttendance = [];
+            
+            for (const key of sessionKeys) {
+                const attendance = await StorageManager.get(key);
+                if (attendance && Array.isArray(attendance)) {
+                    // Filter attendance for this mahasiswa
+                    const myAttendance = attendance.filter(function(a) {
+                        return a.npm === user.npm;
+                    });
+                    
+                    if (myAttendance.length > 0) {
+                        // Get session info
+                        const sessionId = key.replace('attendance:', '');
+                        const session = await StorageManager.get('session:' + sessionId);
+                        
+                        if (session) {
+                            allAttendance.push({
+                                session: session,
+                                attendance: myAttendance[0]
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Sort by timestamp (newest first)
+            allAttendance.sort(function(a, b) {
+                return b.session.timestampMulai - a.session.timestampMulai;
+            });
+            
+            return allAttendance;
+        }
+        
+        // Render history
+        function renderHistory(history) {
+            const container = document.getElementById('historyList');
+            
+            if (history.length === 0) {
+                container.innerHTML = '<div class="text-center py-12 text-gray-500">' +
+                    '<div class="text-6xl mb-4">📭</div>' +
+                    '<p class="text-xl">Belum ada riwayat kehadiran</p>' +
+                    '<p class="text-sm mt-2">Scan QR Code untuk mulai absen</p>' +
+                    '</div>';
+                return;
+            }
+            
+            // Calculate stats
+            let hadir = 0, sakit = 0, izin = 0, alpha = 0;
+            history.forEach(function(h) {
+                if (h.attendance.status === 'hadir') hadir++;
+                else if (h.attendance.status === 'sakit') sakit++;
+                else if (h.attendance.status === 'izin') izin++;
+                else if (h.attendance.status === 'alpha') alpha++;
+            });
+            
+            document.getElementById('countHadir').textContent = hadir;
+            document.getElementById('countSakit').textContent = sakit;
+            document.getElementById('countIzin').textContent = izin;
+            document.getElementById('countAlpha').textContent = alpha;
+            
+            // Render table
+            let html = '<div class="overflow-x-auto"><table class="data-table">';
+            html += '<thead><tr>' +
+                '<th>No</th>' +
+                '<th>Mata Kuliah</th>' +
+                '<th>Kelas</th>' +
+                '<th>Tanggal</th>' +
+                '<th>Jam Scan</th>' +
+                '<th>Status</th>' +
+                '</tr></thead><tbody>';
+            
+            history.forEach(function(item, index) {
+                let badge = '';
+                if (item.attendance.status === 'hadir') badge = '<span class="badge badge-success">Hadir</span>';
+                else if (item.attendance.status === 'sakit') badge = '<span class="badge badge-warning">Sakit</span>';
+                else if (item.attendance.status === 'izin') badge = '<span class="badge badge-info">Izin</span>';
+                else badge = '<span class="badge badge-danger">Alpha</span>';
+                
+                html += '<tr>' +
+                    '<td>' + (index + 1) + '</td>' +
+                    '<td>' + item.session.mataKuliah + '</td>' +
+                    '<td>' + item.session.kelas + '</td>' +
+                    '<td>' + item.session.tanggal + '</td>' +
+                    '<td>' + (item.attendance.jamScan || '-') + '</td>' +
+                    '<td>' + badge + '</td>' +
+                    '</tr>';
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+        
+        // Refresh history
+        async function refreshHistory() {
+            showLoading();
+            await loadHistory();
+            hideLoading();
+        }
+        
+        // Load history
+        async function loadHistory() {
+            const history = await getMahasiswaAttendance();
+            renderHistory(history);
+        }
+        
+        // Initial load
+        loadHistory();
+    </script>
+    
+</body>
+</html> 
