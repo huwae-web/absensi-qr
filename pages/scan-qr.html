@@ -17,10 +17,7 @@
             <h1 class="text-3xl font-bold text-gray-800">Scan QR Code</h1>
             <p class="text-gray-600 mt-1" id="mahasiswaInfo">Loading...</p>
           </div>
-          <button
-            onclick="window.location.href='dashboard-mahasiswa.html'"
-            class="btn-secondary"
-          >
+          <button onclick="window.location.href='dashboard-mahasiswa.html'" class="btn-secondary">
             ← Kembali
           </button>
         </div>
@@ -38,21 +35,27 @@
             <canvas id="canvas" class="hidden"></canvas>
 
             <!-- Scanning Overlay -->
-            <div
-              class="absolute inset-0 flex items-center justify-center pointer-events-none"
-            >
-              <div
-                class="border-4 border-indigo-500 w-64 h-64 rounded-lg"
-              ></div>
+            <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div class="border-4 border-indigo-500 w-64 h-64 rounded-lg"></div>
             </div>
           </div>
+
+          <!-- QR UPLOAD ADDED -->
+          <div class="mt-4 mb-6">
+            <label class="block mb-2 font-semibold text-gray-700">Upload Gambar QR:</label>
+            <input 
+              type="file" 
+              id="qr-image-upload" 
+              accept="image/*" 
+              class="p-2 border rounded w-full bg-white"
+            />
+          </div>
+          <!-- END OF QR UPLOAD -->
 
           <!-- Instructions -->
           <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
             <h3 class="font-semibold text-blue-800 mb-2">📋 Cara Scan:</h3>
-            <ol
-              class="text-sm text-blue-700 space-y-1 list-decimal list-inside"
-            >
+            <ol class="text-sm text-blue-700 space-y-1 list-decimal list-inside">
               <li>Izinkan akses kamera pada browser</li>
               <li>Arahkan kamera ke QR Code di layar dosen</li>
               <li>Pastikan Anda berada di ruang kelas (radius 10m)</li>
@@ -73,27 +76,21 @@
     <script src="../js/auth.js"></script>
     <script src="../js/gps.js"></script>
     <script src="../js/qr.js"></script>
-    <script>
-      // Pastikan kode di bawah ini ditambahkan ke dalam file pages/scan-qr.html
 
+    <script>
       // Cek autentikasi
-      if (!requireAuth("mahasiswa")) {
-        // Akan dialihkan jika tidak terautentikasi
-      }
+      if (!requireAuth("mahasiswa")) {}
 
       const user = getCurrentUser();
-      document.getElementById("mahasiswaInfo").textContent =
-        user.nama + " | NPM: " + user.npm;
+      document.getElementById("mahasiswaInfo").textContent = user.nama + " | NPM: " + user.npm;
 
       let stream = null;
       let scanInterval = null;
       let isProcessing = false;
 
-      // Tambahkan kembali fungsi playBeep
       function playBeep() {
         try {
-          const audioContext = new (window.AudioContext ||
-            window.webkitAudioContext)();
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
           const oscillator = audioContext.createOscillator();
           const gainNode = audioContext.createGain();
 
@@ -104,10 +101,7 @@
           oscillator.type = "sine";
 
           gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(
-            0.01,
-            audioContext.currentTime + 0.1
-          );
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
 
           oscillator.start(audioContext.currentTime);
           oscillator.stop(audioContext.currentTime + 0.1);
@@ -116,25 +110,18 @@
         }
       }
 
-      // Fungsi showStatus (Tidak diubah, hanya ditampilkan untuk kelengkapan)
       function showStatus(message, type) {
         const container = document.getElementById("statusContainer");
         let alertClass = "alert-info";
-
         if (type === "success") alertClass = "alert-success";
         else if (type === "error") alertClass = "alert-error";
         else if (type === "warning") alertClass = "alert-warning";
-
-        container.innerHTML =
-          '<div class="alert ' + alertClass + '">' + message + "</div>";
+        container.innerHTML = '<div class="alert ' + alertClass + '">' + message + "</div>";
       }
 
-      // Start camera (Sedikit diubah untuk constraint yang lebih baik)
       async function startCamera() {
         try {
           showStatus("Memulai kamera...", "info");
-
-          // Menggunakan constraint yang lebih spesifik untuk kamera belakang di mobile
           const constraints = {
             video: {
               facingMode: "environment",
@@ -144,74 +131,93 @@
           };
 
           stream = await navigator.mediaDevices.getUserMedia(constraints);
-
           const video = document.getElementById("video");
           video.srcObject = stream;
 
           showStatus("✅ Kamera aktif. Arahkan ke QR Code...", "success");
 
-          // Mulai scanning
           video.addEventListener("loadedmetadata", function () {
             startScanning();
           });
         } catch (error) {
-          console.error("Camera error:", error);
-          showStatus(
-            "❌ Tidak dapat mengakses kamera! Pastikan izin kamera diaktifkan. Pesan: " +
-              error.message,
-            "error"
-          );
+          showStatus("❌ Tidak dapat mengakses kamera! " + error.message, "error");
         }
       }
 
-      // Start scanning loop (PERBAIKAN UTAMA DI SINI)
       function startScanning() {
         const video = document.getElementById("video");
         const canvas = document.getElementById("canvas");
         const ctx = canvas.getContext("2d");
 
-        console.log("Starting scan loop...");
-
-        // Mengubah interval menjadi 100ms agar lebih responsif
         scanInterval = setInterval(function () {
           if (video.readyState === video.HAVE_ENOUGH_DATA && !isProcessing) {
-            // Set canvas size
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0);
 
-            const imageData = ctx.getImageData(
-              0,
-              0,
-              canvas.width,
-              canvas.height
-            );
-
-            // Menggunakan inversionAttempts untuk meningkatkan deteksi (seperti di kode versi 1 Anda)
-            const code = jsQR(
-              imageData.data,
-              imageData.width,
-              imageData.height,
-              {
-                inversionAttempts: "dontInvert",
-              }
-            );
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: "dontInvert",
+            });
 
             if (code) {
-              playBeep(); // Beri feedback suara
+              playBeep();
               isProcessing = true;
               processQRCode(code.data);
             }
           }
-        }, 100); // <--- INTERVAL JADI 100ms
+        }, 100);
       }
 
-      // Fungsi processQRCode (Tidak ada perubahan yang diperlukan di sini)
+      /* =======================================================
+          🔥 FITUR BARU: SCAN QR DARI UPLOAD GAMBAR
+      ======================================================= */
+      document.getElementById("qr-image-upload").addEventListener("change", function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        stopScanner(); // hentikan kamera agar tidak bentrok
+
+        const reader = new FileReader();
+
+        reader.onload = function () {
+          const img = new Image();
+          img.src = reader.result;
+
+          img.onload = function () {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            ctx.drawImage(img, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: "dontInvert"
+            });
+
+            if (code) {
+              playBeep();
+              showStatus("📁 QR dari gambar berhasil dibaca!", "success");
+              isProcessing = true;
+              processQRCode(code.data);
+            } else {
+              showStatus("❌ Gambar tidak mengandung QR Code!", "error");
+            }
+          };
+        };
+
+        reader.readAsDataURL(file);
+      });
+      /* ======================================================= */
+
       async function processQRCode(qrData) {
         try {
           showStatus("🔍 QR Code terdeteksi! Memproses...", "info");
 
-          // Parse QR data
           const parsed = parseQRData(qrData);
           if (!parsed.success) {
             showStatus("❌ " + parsed.message, "error");
@@ -220,8 +226,6 @@
           }
 
           const data = parsed.data;
-
-          // Get session
           const session = await StorageManager.get("session:" + data.sessionId);
           if (!session) {
             showStatus("❌ Sesi tidak ditemukan!", "error");
@@ -229,30 +233,22 @@
             return;
           }
 
-          // Check if session is active
           if (session.status !== "active") {
             showStatus("❌ Sesi sudah ditutup!", "error");
             isProcessing = false;
             return;
           }
 
-          // Check time limit (15 minutes)
           const validity = isQRCodeValid(data.timestamp);
           if (!validity.isValid) {
-            showStatus(
-              "❌ QR Code sudah expired! (Lebih dari 15 menit)",
-              "error"
-            );
+            showStatus("❌ QR Code sudah expired!", "error");
             isProcessing = false;
             return;
           }
 
           showStatus("📍 Memeriksa lokasi GPS...", "info");
 
-          // Get current GPS
           const myPosition = await getCurrentPosition();
-
-          // Validate distance
           const distance = calculateDistance(
             myPosition.latitude,
             myPosition.longitude,
@@ -260,35 +256,22 @@
             data.gpsLong
           );
 
-          // Batas jarak 10 meter (seperti di kode Anda)
           if (distance > 10) {
-            showStatus(
-              "❌ Anda terlalu jauh dari ruang kelas! Jarak: " +
-                Math.round(distance) +
-                " meter (Max: 10m)",
-              "error"
-            );
+            showStatus("❌ Anda terlalu jauh dari ruang kelas!", "error");
             isProcessing = false;
             return;
           }
 
-          // Check if already attended
-          const attendance =
-            (await StorageManager.get("attendance:" + data.sessionId)) || [];
-          const alreadyAttended = attendance.find(function (a) {
-            return a.npm === user.npm;
-          });
+          const attendance = (await StorageManager.get("attendance:" + data.sessionId)) || [];
+          const alreadyAttended = attendance.find((a) => a.npm === user.npm);
 
           if (alreadyAttended) {
-            showStatus("⚠️ Anda sudah absen di sesi ini!", "warning");
-            setTimeout(function () {
+            showStatus("⚠️ Anda sudah absen!", "warning");
+            setTimeout(() => {
               window.location.href = "dashboard-mahasiswa.html";
             }, 2000);
             return;
           }
-
-          // Record attendance
-          showStatus("💾 Menyimpan absensi...", "info");
 
           const now = new Date();
           attendance.push({
@@ -302,65 +285,42 @@
 
           await StorageManager.set("attendance:" + data.sessionId, attendance);
 
-          // Success!
           stopScanner();
-          showStatus("✅ ABSENSI BERHASIL DICATAT!", "success");
-
-          // Play success sound
+          showStatus("✅ Absensi berhasil dicatat!", "success");
           playBeep();
           setTimeout(playBeep, 200);
 
-          // Show success modal
-          setTimeout(function () {
+          setTimeout(() => {
             alert(
-              "✅ Absensi berhasil!\n\n" +
-                "Mata Kuliah: " +
-                session.mataKuliah +
-                "\n" +
-                "Kelas: " +
-                session.kelas +
-                "\n" +
-                "Waktu: " +
-                now.toLocaleTimeString("id-ID") +
-                "\n" +
-                "Jarak: " +
-                Math.round(distance) +
-                " meter"
+              "Absensi berhasil!\n\n" +
+                "Mata Kuliah: " + session.mataKuliah +
+                "\nKelas: " + session.kelas +
+                "\nWaktu: " + now.toLocaleTimeString("id-ID") +
+                "\nJarak: " + Math.round(distance) + " meter"
             );
 
             window.location.href = "dashboard-mahasiswa.html";
-          }, 1000);
-        } catch (error) {
-          console.error("Process QR error:", error);
-          showStatus("❌ Error: " + error.message, "error");
+          }, 1200);
+
+        } catch (e) {
+          showStatus("❌ Error: " + e.message, "error");
           isProcessing = false;
         }
       }
 
-      // Stop scanner (Tidak diubah, hanya ditampilkan untuk kelengkapan)
       function stopScanner() {
         if (stream) {
-          stream.getTracks().forEach(function (track) {
-            track.stop();
-          });
+          stream.getTracks().forEach((track) => track.stop());
           stream = null;
         }
-
         if (scanInterval) {
           clearInterval(scanInterval);
           scanInterval = null;
         }
       }
 
-      // Start on load (Tidak diubah, hanya ditampilkan untuk kelengkapan)
-      window.addEventListener("load", function () {
-        startCamera();
-      });
-
-      // Cleanup on page unload (Tidak diubah, hanya ditampilkan untuk kelengkapan)
-      window.addEventListener("beforeunload", function () {
-        stopScanner();
-      });
+      window.addEventListener("load", startCamera);
+      window.addEventListener("beforeunload", stopScanner);
     </script>
   </body>
 </html>
