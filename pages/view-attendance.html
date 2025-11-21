@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lihat Absensi - Sistem Absensi</title>
+    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    
+    <div class="container mx-auto px-4 py-8">
+        
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800" id="sessionTitle">Loading...</h1>
+                    <p class="text-gray-600 mt-1" id="sessionInfo">Loading...</p>
+                </div>
+                <button onclick="window.location.href='dashboard-dosen.html'" class="btn-secondary">
+                    ← Kembali
+                </button>
+            </div>
+        </div>
+        
+        <!-- Session Details -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <h2 class="text-xl font-bold mb-4">Informasi Sesi:</h2>
+            <div class="grid md:grid-cols-3 gap-4" id="sessionDetails"></div>
+        </div>
+        
+        <!-- Statistics -->
+        <div class="grid md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-green-50 rounded-lg shadow p-4 border-l-4 border-green-500">
+                <p class="text-sm text-green-600 font-semibold">Hadir</p>
+                <p class="text-3xl font-bold text-green-700" id="countHadir">0</p>
+            </div>
+            <div class="bg-yellow-50 rounded-lg shadow p-4 border-l-4 border-yellow-500">
+                <p class="text-sm text-yellow-600 font-semibold">Sakit</p>
+                <p class="text-3xl font-bold text-yellow-700" id="countSakit">0</p>
+            </div>
+            <div class="bg-blue-50 rounded-lg shadow p-4 border-l-4 border-blue-500">
+                <p class="text-sm text-blue-600 font-semibold">Izin</p>
+                <p class="text-3xl font-bold text-blue-700" id="countIzin">0</p>
+            </div>
+            <div class="bg-red-50 rounded-lg shadow p-4 border-l-4 border-red-500">
+                <p class="text-sm text-red-600 font-semibold">Alpha</p>
+                <p class="text-3xl font-bold text-red-700" id="countAlpha">0</p>
+            </div>
+        </div>
+        
+        <!-- Filters and Search -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <div class="grid md:grid-cols-3 gap-4">
+                <input type="text" id="searchInput" placeholder="Cari nama atau NPM..." class="form-input" onkeyup="filterTable()">
+                
+                <select id="statusFilter" class="form-input" onchange="filterTable()">
+                    <option value="">Semua Status</option>
+                    <option value="hadir">Hadir</option>
+                    <option value="sakit">Sakit</option>
+                    <option value="izin">Izin</option>
+                    <option value="alpha">Alpha</option>
+                </select>
+                
+                <select id="methodFilter" class="form-input" onchange="filterTable()">
+                    <option value="">Semua Metode</option>
+                    <option value="qr">QR Code</option>
+                    <option value="manual">Input Manual</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Attendance Table -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 fade-in">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Daftar Absensi</h2>
+                <button onclick="exportToPDF()" class="btn-success">
+                    📥 Export PDF
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full" id="attendanceTable">
+                    <thead class="bg-gray-100 border-b-2 border-gray-300">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold">No</th>
+                            <th class="px-4 py-3 text-left font-semibold">NPM</th>
+                            <th class="px-4 py-3 text-left font-semibold">Nama Lengkap</th>
+                            <th class="px-4 py-3 text-center font-semibold">Jam Absen</th>
+                            <th class="px-4 py-3 text-center font-semibold">Metode</th>
+                            <th class="px-4 py-3 text-center font-semibold">Status</th>
+                            <th class="px-4 py-3 text-center font-semibold">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+            
+            <div id="emptyState" class="text-center py-12 text-gray-500">
+                <div class="text-6xl mb-4">📋</div>
+                <p class="text-xl">Tidak ada data absensi</p>
+            </div>
+        </div>
+        
+    </div>
+    
+    <!-- Edit Modal -->
+    <div id="editModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+            <h2 class="text-2xl font-bold mb-4">Edit Absensi</h2>
+            <form id="editForm" class="space-y-4">
+                <input type="hidden" id="editIndex">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">NPM</label>
+                    <input type="text" id="editNPM" class="form-input" readonly>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Nama Lengkap</label>
+                    <input type="text" id="editNama" class="form-input" readonly>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Status</label>
+                    <select id="editStatus" class="form-input" required>
+                        <option value="hadir">Hadir</option>
+                        <option value="sakit">Sakit</option>
+                        <option value="izin">Izin</option>
+                        <option value="alpha">Alpha</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn-primary flex-1">Simpan</button>
+                    <button type="button" onclick="closeEditModal()" class="btn-secondary flex-1">Batal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../js/storage.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        // Check authentication
+        if (!requireAuth('dosen')) {
+            // Will redirect if not authenticated
+        }
+        
+        const user = getCurrentUser();
+        let sessionData = null;
+        let attendanceData = [];
+        let filteredData = [];
+        
+        // Get session ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('id');
+        
+        if (!sessionId) {
+            alert('Session ID tidak ditemukan!');
+            window.location.href = 'dashboard-dosen.html';
+        }
+        
+        // Load Session Data
+        async function loadSession() {
+            sessionData = await StorageManager.get('session:' + sessionId);
+            
+            if (!sessionData) {
+                alert('Sesi tidak ditemukan!');
+                window.location.href = 'dashboard-dosen.html';
+                return;
+            }
+            
+            // Check if user is the owner
+            if (sessionData.dosenNIDN !== user.nidn) {
+                alert('Anda tidak memiliki akses ke sesi ini!');
+                window.location.href = 'dashboard-dosen.html';
+                return;
+            }
+            
+            // Update UI
+            document.getElementById('sessionTitle').textContent = sessionData.mataKuliah;
+            document.getElementById('sessionInfo').textContent = 'Kelas: ' + sessionData.kelas + ' | ' + sessionData.tanggal + ' | ' + sessionData.jamMulai;
+            
+            // Session details
+            const detailsHTML = 
+                '<div><p class="text-sm text-gray-600">Mata Kuliah</p><p class="font-bold text-lg">' + sessionData.mataKuliah + '</p></div>' +
+                '<div><p class="text-sm text-gray-600">Kelas</p><p class="font-bold text-lg">' + sessionData.kelas + '</p></div>' +
+                '<div><p class="text-sm text-gray-600">Tanggal</p><p class="font-bold text-lg">' + sessionData.tanggal + '</p></div>' +
+                '<div><p class="text-sm text-gray-600">Jam Mulai</p><p class="font-bold text-lg">' + sessionData.jamMulai + '</p></div>' +
+                '<div><p class="text-sm text-gray-600">Dosen</p><p class="font-bold text-lg">' + sessionData.dosenNama + '</p></div>' +
+                '<div><p class="text-sm text-gray-600">Session ID</p><p class="font-bold text-lg text-xs">' + sessionData.sessionId + '</p></div>';
+            document.getElementById('sessionDetails').innerHTML = detailsHTML;
+            
+            // Load attendance
+            await loadAttendance();
+        }
+        
+        // Load Attendance Data
+        async function loadAttendance() {
+            showLoading();
+            
+            attendanceData = await StorageManager.get('attendance:' + sessionId) || [];
+            filteredData = JSON.parse(JSON.stringify(attendanceData));
+            
+            // Update stats
+            const hadir = attendanceData.filter(a => a.status === 'hadir').length;
+            const sakit = attendanceData.filter(a => a.status === 'sakit').length;
+            const izin = attendanceData.filter(a => a.status === 'izin').length;
+            const alpha = attendanceData.filter(a => a.status === 'alpha').length;
+            
+            document.getElementById('countHadir').textContent = hadir;
+            document.getElementById('countSakit').textContent = sakit;
+            document.getElementById('countIzin').textContent = izin;
+            document.getElementById('countAlpha').textContent = alpha;
+            
+            renderTable();
+            hideLoading();
+        }
+        
+        // Render Table
+        function renderTable() {
+            const tableBody = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (filteredData.length === 0) {
+                tableBody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            
+            emptyState.classList.add('hidden');
+            
+            let html = '';
+            filteredData.forEach((item, index) => {
+                const method = item.jamScan === '-' ? 'manual' : 'qr';
+                let statusBadge = '';
+                
+                if (item.status === 'hadir') statusBadge = '<span class="badge badge-success">Hadir</span>';
+                else if (item.status === 'sakit') statusBadge = '<span class="badge badge-warning">Sakit</span>';
+                else if (item.status === 'izin') statusBadge = '<span class="badge badge-info">Izin</span>';
+                else statusBadge = '<span class="badge badge-danger">Alpha</span>';
+                
+                const methodBadge = method === 'qr' 
+                    ? '<span class="badge bg-blue-100 text-blue-800 text-xs">QR Code</span>'
+                    : '<span class="badge bg-purple-100 text-purple-800 text-xs">Manual</span>';
+                
+                html += '<tr class="border-b hover:bg-gray-50">' +
+                    '<td class="px-4 py-3">' + (index + 1) + '</td>' +
+                    '<td class="px-4 py-3 font-semibold">' + item.npm + '</td>' +
+                    '<td class="px-4 py-3">' + item.nama + '</td>' +
+                    '<td class="px-4 py-3 text-center text-sm">' + (item.jamScan || '-') + '</td>' +
+                    '<td class="px-4 py-3 text-center">' + methodBadge + '</td>' +
+                    '<td class="px-4 py-3 text-center">' + statusBadge + '</td>' +
+                    '<td class="px-4 py-3 text-center">' +
+                    '<button onclick="editRow(' + attendanceData.indexOf(item) + ')" class="text-indigo-600 hover:text-indigo-800 mr-2">✏️ Edit</button>' +
+                    '<button onclick="deleteRow(' + attendanceData.indexOf(item) + ')" class="text-red-600 hover:text-red-800">🗑️ Hapus</button>' +
+                    '</td>' +
+                    '</tr>';
+            });
+            
+            tableBody.innerHTML = html;
+        }
+        
+        // Filter Table
+        function filterTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const methodFilter = document.getElementById('methodFilter').value;
+            
+            filteredData = attendanceData.filter(item => {
+                const matchSearch = item.nama.toLowerCase().includes(searchTerm) || 
+                                  item.npm.toLowerCase().includes(searchTerm);
+                const matchStatus = !statusFilter || item.status === statusFilter;
+                const matchMethod = !methodFilter || 
+                    (methodFilter === 'qr' && item.jamScan !== '-') ||
+                    (methodFilter === 'manual' && item.jamScan === '-');
+                
+                return matchSearch && matchStatus && matchMethod;
+            });
+            
+            renderTable();
+        }
+        
+        // Edit Row
+        function editRow(index) {
+            const item = attendanceData[index];
+            document.getElementById('editIndex').value = index;
+            document.getElementById('editNPM').value = item.npm;
+            document.getElementById('editNama').value = item.nama;
+            document.getElementById('editStatus').value = item.status;
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+        
+        // Close Edit Modal
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+        }
+        
+        // Save Edit
+        document.getElementById('editForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const index = parseInt(document.getElementById('editIndex').value);
+            const newStatus = document.getElementById('editStatus').value;
+            
+            attendanceData[index].status = newStatus;
+            
+            await StorageManager.set('attendance:' + sessionId, attendanceData);
+            
+            closeEditModal();
+            await loadAttendance();
+            alert('Data berhasil diperbarui!');
+        });
+        
+        // Delete Row
+        async function deleteRow(index) {
+            if (!confirm('Yakin ingin menghapus data ini?')) return;
+            
+            showLoading();
+            attendanceData.splice(index, 1);
+            await StorageManager.set('attendance:' + sessionId, attendanceData);
+            await loadAttendance();
+            hideLoading();
+            alert('Data berhasil dihapus!');
+        }
+        
+        // Export to PDF
+        async function exportToPDF() {
+            const jsPDF = window.jspdf.jsPDF;
+            const doc = new jsPDF();
+            
+            doc.setFontSize(16);
+            doc.text('LAPORAN KEHADIRAN KULIAH', 105, 20, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.text('Mata Kuliah: ' + sessionData.mataKuliah, 20, 35);
+            doc.text('Kelas: ' + sessionData.kelas, 20, 42);
+            doc.text('Dosen: ' + sessionData.dosenNama, 20, 49);
+            doc.text('Tanggal: ' + sessionData.tanggal, 20, 56);
+            doc.text('Waktu: ' + sessionData.jamMulai, 20, 63);
+            
+            doc.setFontSize(9);
+            let y = 75;
+            doc.text('No', 20, y);
+            doc.text('NPM', 35, y);
+            doc.text('Nama', 70, y);
+            doc.text('Jam Scan', 130, y);
+            doc.text('Status', 170, y);
+            y += 7;
+            doc.line(20, y - 2, 190, y - 2);
+            
+            filteredData.forEach((item, index) => {
+                if (y > 270) {
+                    doc.addPage();
+                    y = 20;
+                }
+                doc.text((index + 1).toString(), 20, y);
+                doc.text(item.npm, 35, y);
+                doc.text(item.nama.substring(0, 25), 70, y);
+                doc.text(item.jamScan || '-', 130, y);
+                doc.text(item.status.toUpperCase(), 170, y);
+                y += 7;
+            });
+            
+            y += 10;
+            const hadir = filteredData.filter(a => a.status === 'hadir').length;
+            const sakit = filteredData.filter(a => a.status === 'sakit').length;
+            const izin = filteredData.filter(a => a.status === 'izin').length;
+            const alpha = filteredData.filter(a => a.status === 'alpha').length;
+            
+            doc.text('Total: Hadir ' + hadir + ' | Sakit ' + sakit + ' | Izin ' + izin + ' | Alpha ' + alpha, 20, y);
+            
+            doc.save('Absensi_' + sessionData.mataKuliah + '_' + sessionData.tanggal + '.pdf');
+        }
+        
+        // Initial load
+        loadSession();
+    </script>
+    
+</body>
+</html>
